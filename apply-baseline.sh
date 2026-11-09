@@ -278,6 +278,11 @@ EOF
 # --- summary ---------------------------------------------------------------
 
 echo
+if ((DRY)); then
+  echo "Dry run complete. Nothing was changed on $REPO."
+  echo "Run the same command without --dry-run to apply these settings."
+  exit 0
+fi
 if ((${#FAILED[@]})); then
   echo "Finished with ${#FAILED[@]} step(s) that didn't apply:"
   printf '  - %s\n' "${FAILED[@]}"
