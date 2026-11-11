@@ -291,4 +291,9 @@ if ((${#FAILED[@]})); then
 fi
 echo "Done. All baseline settings applied to $REPO."
 [[ -n $CHECK ]] && echo "Required status check: '$CHECK' (a CI job with this name must run on pull requests)."
-echo "Still manual: Grouped security updates and Copilot Autofix (Settings → Advanced Security)."
+echo
+echo "Still manual (GitHub has no API for these). In Settings → Advanced Security:"
+echo "  - Dependabot malware alerts: Enable"
+echo "  - Grouped security updates: Enable"
+echo "  - Copilot Autofix: On, if offered"
+echo "  https://github.com/$REPO/settings/security_analysis"
