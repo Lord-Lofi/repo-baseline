@@ -3,8 +3,12 @@
 # apply-baseline.sh - apply the security baseline to a GitHub repository.
 #
 # Applies: General settings, Actions settings, security features
-# (Dependabot, secret scanning, push protection, CodeQL default setup,
-# private vulnerability reporting) and the three rulesets.
+# (Dependabot, secret scanning, push protection, CodeQL, private
+# vulnerability reporting) and the three rulesets.
+#
+# CodeQL runs from the repository's .github/workflows/codeql.yml ("advanced
+# setup"), so it also runs on Dependabot pull requests. The script turns
+# GitHub's default setup off, because the two can't run side by side.
 #
 # Safe to run more than once: existing rulesets with the same name are
 # updated instead of duplicated.
@@ -19,6 +23,8 @@
 #   --check NAME      Required status check (CI job name). Default: check
 #   --no-check        Don't require a status check
 #   --no-codeql-gate  Don't block PRs on new CodeQL alerts
+#   --codeql-default  Use GitHub's CodeQL default setup instead of codeql.yml
+#                     (default setup doesn't fully cover Dependabot PRs)
 #   --team            Collaborator mode: 1 approval, code owner review,
 #                     approval of the most recent push
 #   --dry-run         Show what would be changed without changing anything
@@ -43,11 +49,13 @@ GITHUB_ACTIONS_APP_ID=15368
 REPO=""
 CHECK="check"
 CODEQL_GATE=1
+CODEQL_MODE="advanced"
+CODEQL_WORKFLOW=".github/workflows/codeql.yml"
 TEAM=0
 DRY=0
 FAILED=()
 
-usage() { sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { awk 'NR>2 && !/^#/ {exit} NR>2 {sub(/^# ?/, ""); print}' "$0"; exit "${1:-0}"; }
 die() { echo "Error: $*" >&2; exit 1; }
 
 while (($#)); do
@@ -55,6 +63,7 @@ while (($#)); do
     --check) [[ $# -ge 2 ]] || die "--check needs a job name"; CHECK="$2"; shift 2 ;;
     --no-check) CHECK=""; shift ;;
     --no-codeql-gate) CODEQL_GATE=0; shift ;;
+    --codeql-default) CODEQL_MODE="default"; shift ;;
     --team) TEAM=1; shift ;;
     --dry-run) DRY=1; shift ;;
     -h|--help) usage 0 ;;
@@ -193,10 +202,28 @@ step "Secret scanning and push protection" api PATCH "" --input - <<'EOF'
 }
 EOF
 CODEQL_OK=0
-if step "CodeQL default setup" api PATCH "/code-scanning/default-setup" --input - <<'EOF'
+if [[ $CODEQL_MODE == "default" ]]; then
+  if step "CodeQL default setup" api PATCH "/code-scanning/default-setup" --input - <<'EOF'
 { "state": "configured" }
 EOF
-then CODEQL_OK=1; fi
+  then CODEQL_OK=1; fi
+else
+  # Advanced setup: CodeQL runs from codeql.yml, so default setup must be off.
+  step "CodeQL default setup off (codeql.yml is used instead)" \
+    api PATCH "/code-scanning/default-setup" --input - <<'EOF'
+{ "state": "not-configured" }
+EOF
+  if ((DRY)); then
+    CODEQL_OK=1
+  elif gh api "repos/$REPO/contents/$CODEQL_WORKFLOW" --silent >/dev/null 2>&1; then
+    echo "  ✓ Found $CODEQL_WORKFLOW on the default branch"
+    CODEQL_OK=1
+  else
+    echo "  ! $CODEQL_WORKFLOW not found on the default branch."
+    echo "    CodeQL won't run until it's added. Add it through a pull request,"
+    echo "    then run this script again to turn on the CodeQL merge gate."
+  fi
+fi
 
 # --- 4. Rulesets -----------------------------------------------------------
 
@@ -245,7 +272,7 @@ if ((CODEQL_GATE)) && { ((CODEQL_OK)) || ((DRY)); }; then
           "security_alerts_threshold": "high_or_higher",
           "alerts_threshold": "errors" } ] } }'
 elif ((CODEQL_GATE)); then
-  echo "  - Skipping the CodeQL merge gate because CodeQL default setup failed"
+  echo "  - Skipping the CodeQL merge gate for now (CodeQL isn't set up yet)"
 fi
 
 step "$RULESET_REVIEW" upsert_ruleset "$RULESET_REVIEW" <<EOF
