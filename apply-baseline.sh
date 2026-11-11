@@ -24,7 +24,7 @@
 #   --no-check        Don't require a status check
 #   --no-codeql-gate  Don't block PRs on new CodeQL alerts
 #   --codeql-default  Use GitHub's CodeQL default setup instead of codeql.yml
-#   --wiki            Keep the repository wiki turned on (default: off)
+#   --no-wiki         Turn the repository wiki off (default: on)
 #                     (default setup doesn't fully cover Dependabot PRs)
 #   --team            Collaborator mode: 1 approval, code owner review,
 #                     approval of the most recent push
@@ -50,7 +50,7 @@ GITHUB_ACTIONS_APP_ID=15368
 REPO=""
 CHECK="check"
 CODEQL_GATE=1
-WIKI=false
+WIKI=true
 CODEQL_MODE="advanced"
 CODEQL_WORKFLOW=".github/workflows/codeql.yml"
 TEAM=0
@@ -65,7 +65,7 @@ while (($#)); do
     --check) [[ $# -ge 2 ]] || die "--check needs a job name"; CHECK="$2"; shift 2 ;;
     --no-check) CHECK=""; shift ;;
     --no-codeql-gate) CODEQL_GATE=0; shift ;;
-    --wiki) WIKI=true; shift ;;
+    --no-wiki) WIKI=false; shift ;;
     --codeql-default) CODEQL_MODE="default"; shift ;;
     --team) TEAM=1; shift ;;
     --dry-run) DRY=1; shift ;;
@@ -322,8 +322,14 @@ fi
 echo "Done. All baseline settings applied to $REPO."
 [[ -n $CHECK ]] && echo "Required status check: '$CHECK' (a CI job with this name must run on pull requests)."
 echo
-echo "Still manual (GitHub has no API for these). In Settings → Advanced Security:"
+echo "Still manual (GitHub has no API for these):"
+echo "  In Settings → Advanced Security:"
 echo "  - Dependabot malware alerts: Enable"
 echo "  - Grouped security updates: Enable"
 echo "  - Copilot Autofix: On, if offered"
 echo "  https://github.com/$REPO/settings/security_analysis"
+if [[ $WIKI == true ]]; then
+  echo "  In Settings → General → Features → Wikis:"
+  echo "  - Restrict editing to collaborators only: On"
+  echo "  https://github.com/$REPO/settings"
+fi
