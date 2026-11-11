@@ -24,6 +24,7 @@
 #   --no-check        Don't require a status check
 #   --no-codeql-gate  Don't block PRs on new CodeQL alerts
 #   --codeql-default  Use GitHub's CodeQL default setup instead of codeql.yml
+#   --wiki            Keep the repository wiki turned on (default: off)
 #                     (default setup doesn't fully cover Dependabot PRs)
 #   --team            Collaborator mode: 1 approval, code owner review,
 #                     approval of the most recent push
@@ -49,6 +50,7 @@ GITHUB_ACTIONS_APP_ID=15368
 REPO=""
 CHECK="check"
 CODEQL_GATE=1
+WIKI=false
 CODEQL_MODE="advanced"
 CODEQL_WORKFLOW=".github/workflows/codeql.yml"
 TEAM=0
@@ -63,6 +65,7 @@ while (($#)); do
     --check) [[ $# -ge 2 ]] || die "--check needs a job name"; CHECK="$2"; shift 2 ;;
     --no-check) CHECK=""; shift ;;
     --no-codeql-gate) CODEQL_GATE=0; shift ;;
+    --wiki) WIKI=true; shift ;;
     --codeql-default) CODEQL_MODE="default"; shift ;;
     --team) TEAM=1; shift ;;
     --dry-run) DRY=1; shift ;;
@@ -146,10 +149,10 @@ fi
 
 echo
 echo "General"
-step "Features and pull request settings" api PATCH "" --input - <<'EOF'
+step "Features and pull request settings" api PATCH "" --input - <<EOF
 {
   "has_issues": true,
-  "has_wiki": false,
+  "has_wiki": $WIKI,
   "has_projects": false,
   "has_discussions": false,
   "allow_merge_commit": false,
